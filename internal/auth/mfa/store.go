@@ -128,7 +128,7 @@ func verifyAt(code, secret string, timestamp time.Time) bool {
 	return err == nil && valid
 }
 
-func (store *Store) VerifyAndConsume(ctx context.Context, userID int64, code, secret string) (bool, error) { 
+func (store *Store) VerifyAndConsume(ctx context.Context, userID int64, code, secret string) (bool, error) {
 	now := store.now()
 	if !verifyAt(code, secret, now) {
 		return false, nil
@@ -291,9 +291,19 @@ func (store *Store) DeleteChallenge(ctx context.Context, token string) error {
 }
 
 func (store *Store) ConsumeBackupCode(ctx context.Context, userID int64, code string) (bool, error) {
-	var count int
-	if err := store.database.QueryRowContext(ctx, "SELECT COUNT(*) FROM totp_backup_codes WHERE user_id = ? AND code_hash = ?", userID, hashToken(code)).Scan(&count); err != nil {
-		return false, fmt.Errorf("find TOTP backup code: %w", err)
+	var count int64
+	hashedCode := hashToken(code)
+	consumeParams := dbgen.ConsumeTOTPBackupCodeParams{
+		UserID:   userID,
+		CodeHash: hashedCode,
+	}
+	result, err := store.queries.ConsumeTOTPBackupCode(ctx, consumeParams)
+	if err != nil {
+		return false, err
+	}
+	count, err = result.RowsAffected()
+	if err != nil {
+		return false, err
 	}
 	return count == 1, nil
 }
