@@ -4,6 +4,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/bootdotdev/learn-web-security/internal/accounts"
 	"github.com/bootdotdev/learn-web-security/internal/auth/sessions"
@@ -187,10 +188,16 @@ func makeItemViews(items []Item) []itemView {
 }
 
 func parseQuantity(value string, minimum int64) (int64, bool) {
+	if strings.ContainsAny(value, "eE") {
+		return 0, false
+	}
 	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed != math.Trunc(parsed) {
 		return 0, false
 	}
 	quantity := int64(parsed)
+	if quantity < 0 || quantity > 99 {
+		return 0, false
+	}
 	return quantity, quantity >= minimum && quantity <= MaximumQuantity
 }
