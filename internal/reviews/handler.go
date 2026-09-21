@@ -1,6 +1,7 @@
 package reviews
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -97,13 +98,16 @@ func (handler *Handler) List(responseWriter http.ResponseWriter, request *http.R
 func (handler *Handler) Edit(responseWriter http.ResponseWriter, request *http.Request) {
 	current, ok := handler.requireAuth(responseWriter, request)
 	if !ok {
+		handler.internalError(responseWriter, request, fmt.Errorf("Error looking for auth"))
 		return
 	}
 	review, found := handler.requireReview(responseWriter, request)
 	if !found {
+		handler.errorPage(responseWriter, http.StatusNotFound, "User not found", "")
 		return
 	}
 	if current.User.ID != review.UserID {
+		handler.errorPage(responseWriter, http.StatusForbidden, "Permission denied", "")
 		return
 	}
 	if err := handler.renderForm(responseWriter, http.StatusOK, current, review, ""); err != nil {
@@ -171,7 +175,7 @@ func (handler *Handler) Delete(responseWriter http.ResponseWriter, request *http
 
 func (handler *Handler) requireReview(responseWriter http.ResponseWriter, request *http.Request) (Review, bool) {
 	current, ok := handler.requireAuth(responseWriter, request)
-	if !ok || !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
+	if !ok {
 		return Review{}, false
 	}
 	reviewID, valid := httpx.ParseSafeInteger(request.PathValue("id"))
