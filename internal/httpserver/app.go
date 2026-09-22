@@ -146,7 +146,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	dynamicMux.HandleFunc("GET /products/{id}", storefrontHandler.Product)
 	dynamicMux.HandleFunc("GET /api/account/orders", apiHandler.AccountOrders)
 	dynamicMux.HandleFunc("GET /api/orders/{id}", apiHandler.Order)
-	dynamicMux.HandleFunc("GET /api/products", apiHandler.Products)
+	dynamicMux.Handle("GET /api/products", getProductsCORS(http.HandlerFunc(apiHandler.Products)))
 	dynamicMux.HandleFunc("GET /api/integrations/warehouse/orders", apiHandler.WarehouseOrders)
 	dynamicMux.Handle("POST /products/{id}/reviews", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(reviewHandler.Create)))
 	dynamicMux.HandleFunc("GET /login", authenticationHandler.LoginPage)
@@ -209,13 +209,14 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	dynamicMux.HandleFunc("GET /admin/products/{id}/edit", adminHandler.EditProduct)
 	dynamicMux.Handle("POST /admin/products/{id}", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(adminHandler.UpdateProduct)))
 	dynamicMux.HandleFunc("GET /admin/products/{id}", adminHandler.Product)
+	dynamicMux.HandleFunc("OPTIONS /api/products", opcProductsCORS)
 	dynamicMux.HandleFunc("/", func(responseWriter http.ResponseWriter, _ *http.Request) {
 		if err := httpx.RespondWithErrorPage(responseWriter, renderer, http.StatusNotFound, "Page Not Found", "We couldn't find the page you requested."); err != nil {
 			http.Error(responseWriter, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	})
 
-	dynamicHandler := validateRequestOrigin(options.AppOrigin, renderer)(permissiveCORS(dynamicMux))
+	dynamicHandler := validateRequestOrigin(options.AppOrigin, renderer)(dynamicMux)
 
 	mainMux := http.NewServeMux()
 	mainMux.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, _ *http.Request) {
@@ -236,7 +237,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	handler := applyMiddleware(
 		mainMux,
 		cspNonce,
-		contentTypeOptions,
+		securityHeaders,
 		recoverPanics(logger, renderer),
 	)
 	return &Application{Handler: handler, publicRoot: publicRoot}, nil
@@ -254,6 +255,9 @@ func newStaticHandler(publicRoot *os.Root) http.Handler {
 		if err != nil || fileInfo.IsDir() {
 			http.NotFound(responseWriter, request)
 			return
+		}
+		if filepath.Base(relativePath) == "shipping-widget.css" || filepath.Base(relativePath) == "shipping-widget.js" {
+			responseWriter.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
 		}
 		fileServer.ServeHTTP(responseWriter, request)
 	})
