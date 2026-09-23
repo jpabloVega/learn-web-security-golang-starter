@@ -3,9 +3,9 @@ package logging
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 )
@@ -36,7 +36,15 @@ func (logger *Logger) Event(eventName string, fields map[string]any) error {
 		"timestamp": logger.now().UTC().Format("2006-01-02T15:04:05.000Z"),
 		"event":     eventName,
 	}
-	maps.Copy(record, fields)
+
+	sensitive := []string{"sessionId", "resetToken", "resetLink", "secret", "adminNotes", "storagePath"}
+	for key, value := range fields {
+		if slices.Contains(sensitive, key) {
+			record[key] = "[REDACTED]"
+			continue
+		}
+		record[key] = value
+	}
 
 	logger.mutex.Lock()
 	defer logger.mutex.Unlock()

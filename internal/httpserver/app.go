@@ -50,6 +50,7 @@ type Options struct {
 	FixtureDirectory        string
 	TemplateDirectory       string
 	PublicDirectory         string
+	DownloadSigningKey      [32]byte
 }
 
 type Application struct {
@@ -112,7 +113,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		options.EncryptionKeyring,
 		uploadDirectory,
 		defaultUploadBytes,
-		downloadSigningKey,
+		options.DownloadSigningKey,
 	)
 	adminHandler := admin.NewHandler(admin.NewStore(database), accountStore, renderer, logger, imagepreview.NewService(), options.MaxUploadBytes)
 	apiHandler := api.NewHandler(accountStore, orderStore, productStore, api.NewStore(database), logger, unboundedPublicProductResults)
