@@ -13,6 +13,7 @@ import (
 
 	"github.com/bootdotdev/learn-web-security/internal/accounts"
 	"github.com/bootdotdev/learn-web-security/internal/auth/mfa"
+	"github.com/bootdotdev/learn-web-security/internal/auth/returnto"
 	"github.com/bootdotdev/learn-web-security/internal/auth/sessions"
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
@@ -80,7 +81,7 @@ func NewHandler(appOrigin string, accountStore *accounts.Store, mfaStore *mfa.St
 }
 
 func (handler *Handler) LoginPage(responseWriter http.ResponseWriter, request *http.Request) {
-	returnTo := unsafeReturnTo(request.URL.Query().Get("returnTo"))
+	returnTo := safeReturnTo(request.URL.Query().Get("returnTo"))
 	if err := handler.renderLogin(responseWriter, http.StatusOK, "", returnTo); err != nil {
 		handler.internalError(responseWriter, request, err)
 	}
@@ -355,7 +356,7 @@ func (handler *Handler) passkeyResponse(responseWriter http.ResponseWriter, requ
 			if err != nil {
 				return "", "/", nil, err
 			}
-			returnTo = unsafeReturnTo(returnToValue)
+			returnTo = safeReturnTo(returnToValue)
 		}
 		delete(responseFields, "returnTo")
 	}
@@ -366,13 +367,6 @@ func (handler *Handler) passkeyResponse(responseWriter http.ResponseWriter, requ
 	request.Body = io.NopCloser(bytes.NewReader(encodedResponse))
 	request.ContentLength = int64(len(encodedResponse))
 	return challengeID, returnTo, responseFields, nil
-}
-
-func unsafeReturnTo(value string) string {
-	if value == "" {
-		return "/"
-	}
-	return value
 }
 
 func responseCredentialID(responseFields map[string]json.RawMessage) (string, bool) {
@@ -432,4 +426,12 @@ func clearTOTPLoginChallengeCookie(responseWriter http.ResponseWriter) {
 		Name: totpLoginChallengeCookieName, Path: "/", Expires: time.Unix(0, 0), MaxAge: -1,
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func safeReturnTo(value string) string {
+	parsedValue := returnto.Safe(value)
+	if parsedValue == "" {
+		return "/"
+	}
+	return parsedValue
 }

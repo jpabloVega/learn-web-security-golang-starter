@@ -37,17 +37,29 @@ type client interface {
 }
 
 type Service struct {
-	client client
+	client *http.Client
 }
 
 func NewService() *Service {
-	return &Service{client: http.DefaultClient}
+	trans := http.Transport{
+		ResponseHeaderTimeout: 5 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		Proxy:                 nil,
+	}
+	client := http.Client{
+		Timeout:   5 * time.Second,
+		Transport: &trans,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	return &Service{client: &client}
 }
 
 func (service *Service) Fetch(ctx context.Context, rawURL string, maxBytes int64) (Result, error) {
 	requestedURL, valid := allowedURL(rawURL)
 	if !valid {
-		return Result{}, &Error{Message: "Use an absolute HTTP or HTTPS URL."}
+		return Result{}, &Error{Message: "Use an HTTPS URL from an allowed image host."}
 	}
 	if maxBytes <= 0 {
 		return Result{}, errors.New("maximum image size must be positive")
@@ -99,11 +111,8 @@ func (service *Service) Fetch(ctx context.Context, rawURL string, maxBytes int64
 
 func allowedURL(rawURL string) (*url.URL, bool) {
 	parsed, err := url.Parse(rawURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+	if err != nil || parsed.Host != "storage.googleapis.com" || parsed.Scheme != "https" || parsed.User != nil {
 		return nil, false
-	}
-	if parsed.Path == "" {
-		parsed.Path = "/"
 	}
 	return parsed, true
 }

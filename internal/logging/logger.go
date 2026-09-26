@@ -37,7 +37,19 @@ func (logger *Logger) Event(eventName string, fields map[string]any) error {
 		"event":     eventName,
 	}
 
-	sensitive := []string{"sessionId", "resetToken", "resetLink", "secret", "adminNotes", "storagePath"}
+	sensitive := []string{"sessionId",
+		"resetToken",
+		"resetLink",
+		"secret",
+		"adminNotes",
+		"storagePath",
+		"email",
+		"shippingName",
+		"shippingAddress",
+		"shippingCity",
+		"shippingRegion",
+		"shippingPostalCode",
+		"originalName"}
 	for key, value := range fields {
 		if slices.Contains(sensitive, key) {
 			record[key] = "[REDACTED]"

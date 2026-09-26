@@ -260,8 +260,17 @@ func (limiter *fixedWindowLimiter) reject(responseWriter http.ResponseWriter, re
 
 func fixedWindowRateLimiter(options rateLimitOptions) middleware {
 	validateRateLimitOptions(options)
+	windowsLimiter := newFixedWindowLimiter(options)
 	return func(next http.Handler) http.Handler {
-		return next
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			rateLState, atItsLimit := windowsLimiter.consume(req)
+			if atItsLimit {
+				windowsLimiter.reject(w, req, rateLState)
+				return
+			}
+			setRateLimitHeaders(w, rateLState)
+			next.ServeHTTP(w, req)
+		})
 	}
 }
 
